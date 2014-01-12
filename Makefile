@@ -1,54 +1,49 @@
 MAKEFLAGS = -s
 export GOPATH := $(shell godep path):$(GOPATH)
+PLATFORMS = linux/386 linux/amd64 darwin/amd64
 
-default: darwin
+FSEVENTS = build/fsevents-wrapper
+TARGET_DIRS = $(wildcard go/cmd/*)
+TARGET_GOPKGS = $(addprefix github.com/burke/zeus/,$(TARGET_DIRS))
+TARGET_BINARIES = $(addprefix build/,$(TARGET_DIRS:%/=%))
 
-all: fmt darwin linux-386 linux-amd64 manpages gem
+VERSION = go/zeusversion/zeusversion.go
+
+default: build
+
+all: fmt build manpages gem
 
 fmt:
-	for i in `find . -name '*.go'` ; do echo "go fmt $$i" ; go fmt $$i; done
+	godep go fmt -x $(dir $(shell find ./go/ -name '*.go'))
 
 manpages:
 	cd man; /usr/bin/env rake
 
-gem: fsevents manpages
+gem: $(FSEVENTS) manpages
 	mkdir -p rubygem/ext/fsevents-wrapper
 	cp -r examples rubygem
 	cp build/fsevents-wrapper rubygem/ext/fsevents-wrapper
 	cd rubygem; /usr/bin/env rake
 
-fsevents:
+$(FSEVENTS): ext/fsevents/*.m
 	cd ext/fsevents ; $(MAKE)
 	mkdir -p build
 	cp ext/fsevents/build/Release/fsevents-wrapper build
 
-linux_v = linux-386
-ifeq ($(shell uname -m), x86_64)
-	linux_v := linux-amd64
-endif
-linux: fmt manpages $(linux_v)
-	mkdir -p rubygem/man
-	cp -R man/build rubygem/man/
-	cd rubygem ; /usr/bin/env rake
+build: $(VERSION) $(FSEVENTS)
+	gox -osarch="${PLATFORMS}" -output="./build/{{.Dir}}-{{.OS}}-{{.Arch}}" $(TARGET_GOPKGS)
 
-linux-386: goversion
-	cd go/cmd/zeus; CGO_ENABLED=0 GOOS=linux GOARCH=386 $(MAKE) -o zeus-linux-386
-
-linux-amd64: goversion
-	cd go/cmd/zeus; CGO_ENABLED=0 GOOS=linux GOARCH=amd64 $(MAKE) -o zeus-linux-amd64
-
-darwin: goversion fsevents
-	cd go/cmd/zeus; CGO_ENABLED=0 GOOS=darwin GOARCH=amd64 $(MAKE) -o zeus-darwin
-
-goversion:
+$(VERSION): VERSION
 	cd go/zeusversion ; /usr/bin/env ruby ./genversion.rb
 
 install: all
 	gem install rubygem/pkg/*.gem --no-ri --no-rdoc
 
 clean:
-	cd go/cmd/zeus; $(MAKE) clean
+	rm -f build/*
 	cd man; rake clean
 	cd ext/fsevents ; $(MAKE) clean
 	cd rubygem ; rake clean
-	rm -f go/zeusversion/zeusversion.go
+	rm -f $(VERSION)
+
+.PHONY: build clean all fmt manpages gem default

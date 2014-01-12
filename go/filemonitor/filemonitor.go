@@ -15,6 +15,8 @@ import (
 )
 
 // {{{ public API
+const PROXY_PORT_ENV_VAR string = "ZEUS_FS_NOTIFICATION_PROXY"
+
 func Start(done chan bool) (filesChanged chan string, quit chan bool) {
 	quit = make(chan bool)
 	filesChanged = make(chan string, 1024)
@@ -24,6 +26,45 @@ func Start(done chan bool) (filesChanged chan string, quit chan bool) {
 
 func AddFile(file string) {
 	filesToWatch <- file
+}
+
+func ExecutablePath() string {
+	// If we're running off a file system that doesn't support FS
+	// notifications (e.g. NFS inside a VM), this allows us to connect to
+	// file a system notification thing running on the host:
+	if os.Getenv(PROXY_PORT_ENV_VAR) != "" {
+		return path.Join(path.Dir(os.Args[0]), "fn-proxy-guest-"+runtime.GOOS+"-"+runtime.GOARCH)
+	}
+
+	// Otherwise, run natively:
+	switch runtime.GOOS {
+	case "darwin":
+		return path.Join(path.Dir(os.Args[0]), "fsevents-wrapper")
+	case "linux":
+		gemRoot := path.Dir(path.Dir(os.Args[0]))
+		return path.Join(gemRoot, "ext/inotify-wrapper/inotify-wrapper")
+	}
+	terminate("Unsupported OS")
+	return ""
+}
+
+func StartWrapperProgram() (*exec.Cmd, io.WriteCloser, io.ReadCloser, io.ReadCloser, error) {
+	cmd := exec.Command(ExecutablePath())
+	var err error
+
+	if watcherIn, err = cmd.StdinPipe(); err != nil {
+		return nil, nil, nil, nil, err
+	}
+	if watcherOut, err = cmd.StdoutPipe(); err != nil {
+		return nil, nil, nil, nil, err
+	}
+	if watcherErr, err = cmd.StderrPipe(); err != nil {
+		return nil, nil, nil, nil, err
+	}
+
+	cmd.Start()
+
+	return cmd, watcherIn, watcherOut, watcherErr, nil
 }
 
 // }}}
@@ -59,32 +100,11 @@ func start(filesChanged chan string, done, quit chan bool) {
 	}
 }
 
-func executablePath() string {
-	switch runtime.GOOS {
-	case "darwin":
-		return path.Join(path.Dir(os.Args[0]), "fsevents-wrapper")
-	case "linux":
-		gemRoot := path.Dir(path.Dir(os.Args[0]))
-		return path.Join(gemRoot, "ext/inotify-wrapper/inotify-wrapper")
-	}
-	terminate("Unsupported OS")
-	return ""
-}
-
 func startWrapper(filesChanged chan string) *exec.Cmd {
-	cmd := exec.Command(executablePath())
-	var err error
-	if watcherIn, err = cmd.StdinPipe(); err != nil {
+	cmd, _, _, _, err := StartWrapperProgram()
+	if err != nil {
 		terminate(err.Error())
 	}
-	if watcherOut, err = cmd.StdoutPipe(); err != nil {
-		terminate(err.Error())
-	}
-	if watcherErr, err = cmd.StderrPipe(); err != nil {
-		terminate(err.Error())
-	}
-
-	cmd.Start()
 
 	go func() {
 		buf := make([]byte, 2048)

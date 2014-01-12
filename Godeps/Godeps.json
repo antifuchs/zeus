@@ -1,0 +1,18 @@
+{
+        "ImportPath": "github.com/burke/zeus",
+        "GoVersion": "go1.2",
+        "Packages": [
+                "github.com/burke/zeus/go/"
+        ],
+        "Deps": [
+                {
+                        "ImportPath": "github.com/burke/ttyutils",
+                        "Rev": "70f0d73eb47f7033f514f7f8f5138152fe1088fc"
+                },
+                {
+                        "ImportPath": "github.com/kr/pty",
+                        "Comment": "release.r56-11-gc46bdbf",
+                        "Rev": "c46bdbf4af2e43e5f163092037ec27e9e9aee1f3"
+                }
+        ]
+}

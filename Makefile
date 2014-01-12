@@ -1,4 +1,5 @@
 MAKEFLAGS = -s
+export GOPATH := $(shell godep path):$(GOPATH)
 
 default: darwin
 

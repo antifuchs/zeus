@@ -14,6 +14,7 @@ import (
 	"github.com/burke/zeus/go/zeusclient"
 	"github.com/burke/zeus/go/zeusmaster"
 	"github.com/burke/zeus/go/zeusversion"
+	"runtime"
 	"time"
 )
 
@@ -64,6 +65,8 @@ func main() {
 		zeusInit()
 	} else if config.Args[0] == "commands" {
 		zeusCommands()
+	} else if config.Args[0] == "fsevents-proxy" {
+		execFSeventsProxy()
 	} else {
 		tree := config.BuildProcessTree()
 		for _, name := range tree.AllCommandsAndAliases() {
@@ -75,6 +78,15 @@ func main() {
 
 		commandNotFound(config.Args[0])
 	}
+}
+
+func execFSeventsProxy() {
+	executableName := fmt.Sprintf("fn-proxy-host-%s-%s", runtime.GOOS, runtime.GOARCH)
+	program := path.Join(path.Dir(os.Args[0]), executableName)
+	args := make([]string, len(config.Args)+1)
+	copy(args, []string{"/usr/bin/env", program})
+	copy(args[2:], config.Args[1:])
+	syscall.Exec("/usr/bin/env", args, os.Environ())
 }
 
 func execManPage(page string) {

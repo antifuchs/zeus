@@ -2,11 +2,12 @@ package main
 
 import (
 	"bufio"
+	"fmt"
 	"github.com/burke/zeus/go/filemonitor"
+	"io"
 	"net"
 	"os"
 	"strings"
-	"io"
 )
 
 var hostToGuest map[string]string = make(map[string]string)
@@ -84,7 +85,7 @@ func proxyFiles(readErrors chan error, out *bufio.Writer, in *bufio.Reader, tran
 			}
 		}
 		if verbose {
-			println("Got a file notification: " + originalFile + " but " + file)
+			fmt.Printf("Got a file notification: %V => %V", originalFile, file)
 		}
 		out.WriteString(file)
 		out.Flush()

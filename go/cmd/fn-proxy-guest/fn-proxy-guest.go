@@ -62,7 +62,7 @@ func proxyRequests(connections chan net.Conn, requests chan *bytes.Buffer) {
 		fmt.Printf("Sending to %v...\n", conn)
 		if _, err := req.WriteTo(conn); err != nil {
 			println("Error proxying a request over: " + err.Error() + ". Dumping this connection and getting an new one.")
-			conn = <- connections
+			conn = <-connections
 			continue
 		}
 		select {
